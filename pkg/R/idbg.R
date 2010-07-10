@@ -44,7 +44,18 @@ idbg.bp <- function( func_name, line_number=NA, condition=TRUE)
 ###############################################################################
 idbg.print_breakpoints <- function()
 {
-  cat ("not implemented yet\n")
+  
+  breakpoints <- NULL
+  for (fname in idbg()[["ifunc_names"]])
+  {
+    f <-  idbg.match.ifunc(fname)
+    if (is.null(f))
+      next
+    fbp <- list_breakpoints.ifunc(f)
+    if (length(fbp))
+      breakpoints <- rbind(breakpoints, data.frame("function"=fname,line=fbp))
+  }
+  print(breakpoints)
 }
 ###############################################################################
 idbg.interact <- function(pos, func_name)
@@ -135,10 +146,10 @@ idbg.interact <- function(pos, func_name)
         list_source.ifunc(lfunc, lpos)
       else
       if (length(words) == 1)
-        list_source.ifunc(lfunc, lpos, as.integer(words[[1]]), as.integer(words[[1]]))
+        list_source.ifunc(lfunc, lpos, words[[1]], words[[1]])
       else
       if (length(words) >= 2)
-        list_source.ifunc(lfunc, lpos, as.integer(words[[1]]), as.integer(words[[2]]))
+        list_source.ifunc(lfunc, lpos, words[[1]], words[[2]])
     }
     else
     if (cmd == "b")
@@ -147,22 +158,34 @@ idbg.interact <- function(pos, func_name)
         idbg.print_breakpoints()
       else
       {
-        # conditional breakpoint support not working yet
-        #if (length(words) == 2)
-        #  condition <- parse(words[[2]])
-        #else
-          condition <- TRUE
+        
+        # if first argument is a number than break at current func otherwise it is a func name string
         bp_line <-  as.numeric(words[[1]])
+        bp_cond_arg <- 2
         if (is.na(bp_line))
         {
           # this must be a name of a function, break on the 1st line 
-          idbg.bp(words[[1]], NA, condition) 
+          bp_func_name <- words[[1]]
+          if (length(words) > 1)
+          {  
+            bp_line <-  as.numeric(words[[2]])
+            if (! is.na(bp_line))
+              bp_cond_arg <- 3
+          }
         } 
         else
         {
           # this is a line number to break in current proc
-          idbg.bp(func_name, bp_line, condition)
+          bp_func_name <- func_name
         }
+
+        # conditional breakpoint support not working yet - to set a breakpoint condition is TRUE, to clear FALSE
+        # condition <- parse(words[[2]])
+        bp_condition <- TRUE
+        if (length(words) >= bp_cond_arg && (words[[bp_cond_arg]] == "FALSE" || words[[bp_cond_arg]]=="F"))
+          bp_condition <- FALSE
+        
+        idbg.bp(bp_func_name, bp_line, bp_condition) 
       }
     }
     else
@@ -209,16 +232,21 @@ idbg.interact <- function(pos, func_name)
     else
     if (cmd == "h")
     {
-      cat("n - next\n")
+      cat("n - next. Empty line is the same as 'n'\n")
       cat("s - step into\n")
       cat("o - step out\n")
       cat("c - continue\n")
       cat("q - quit\n")
-      cat("l - print source\n")
-      cat("b - print breakpoints\n")
-      cat("b <func_name> - set a breakpoint in first line of function\n")
-      cat("b <line_number> - set a breakpoint in current function\n")
-      cat("x - execute expression\n")
+      cat("b - print breakpoints - not implemented yet\n")
+      cat("b <func_name> [FALSE] - set/unset a breakpoint in first line of function\n")
+      cat("b <line_number> [FALSE] - set/unset a breakpoint in current function\n")
+      cat("b <func_name> <line_number> [FALSE] - set/unset a breakpoint in function at at line_number\n")
+      cat("w - print the stack\n")
+      cat("u - go up the stack\n")
+      cat("d - go down the stack\n")
+      cat("l [nlines] - print nlines of source before and after current position\n")
+      cat("l [nlines_back] [n_lines_forward] - print source around current position\n")
+      cat("x expr - execute expression. Any expression that doesn't match the above options will also be executed\n")
     }
     else
     {
@@ -241,6 +269,15 @@ idbg.interact <- function(pos, func_name)
       timestamp(expr,prefix="",suffix="",quiet =TRUE)
     }
   }
+}
+###############################################################################
+idbg.match.ifunc <- function(fname)
+{
+  f <-match.fun(fname)
+  if (is.ifunc(f))
+    return(f)
+
+  return(NULL)
 }
 ###############################################################################
 idbg.prepare_step <- function(expr)
@@ -460,6 +497,7 @@ print.ifunc <- function(x)
     cat(line,"\n")
 }
 ###############################################################################
+# to clear a breakpoint set expr to FALSE
 breakpoint.ifunc <- function(f, line_number, expr=TRUE)
 {
   if (! is.ifunc(f) )
@@ -479,8 +517,25 @@ breakpoint.ifunc <- function(f, line_number, expr=TRUE)
   return(TRUE)
 }
 ###############################################################################
+list_breakpoints.ifunc <- function(f)
+{
+  if (! is.ifunc(f))
+    return(NULL)
+  keys <- which(attr(f,"data")$breakpoints != FALSE)
+  lines <- (attr(f, "data")$key2line)[keys]
+  return(lines)
+}
+###############################################################################
 list_source.ifunc <- function(func, pos, back=10, forward=10)
 {
+  back <- suppressWarnings(as.integer(back))
+  forward <- suppressWarnings(as.integer(forward))
+
+  if (is.na(back) || back < 0)
+    back <- 10
+  if (is.na(forward) || forward < 0)
+    forward <- 10
+
   if (is.character(func))
     func <- match.fun(func)
 
@@ -565,16 +620,15 @@ list_source.ifunc <- function(func, pos, back=10, forward=10)
 #    print(i)
 #  }
 #}
-#bzz <- function()
+#bzz <- function(a)
 #{
-#  a <- 5;
 #  if ( a > 0)
 #  {
 #    a <- 0
 #    bar()
 #  }
 #  else
-#    foo()
+#    foo(1,a+1,a+2)
 #  
 #  print(a)
 #}
@@ -609,7 +663,7 @@ list_source.ifunc <- function(func, pos, back=10, forward=10)
 #  }
 #  qqq()
 #}
-
+#
 
 
 
