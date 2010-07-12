@@ -232,6 +232,7 @@ idbg.interact <- function(pos, func_name)
     else
     if (cmd == "h")
     {
+      cat("h - help. print this message\n")
       cat("n - next. Empty line is the same as 'n'\n")
       cat("s - step into\n")
       cat("o - step out\n")
