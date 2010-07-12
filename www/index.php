@@ -43,7 +43,40 @@ echo $contents; } ?>
 
 <!-- end of project description -->
 
-<p> No content added. </p>
+<p> 
+How to use the debugger<br>
+=======================<br>
+1. source the debugger<br>
+   source("idbg.R")<br>
+2. Set a breakpoint in the function to debug<br>
+   idbg.bp("foo")<br>
+3. Call the function<br>
+   foo(1,2,3)<br>
+4. The debugger will stop at the first line of foo<br>
+5. Use the following commands<br>
+<br>
+h - help. Print this message<br>
+n - next. Empty line is the same as 'n'<br>
+s - step. Step  into a function<br>
+o - out. Step out of a function<br>
+c - continue. Continue running<br>
+q - quit. Exit the debugger<br>
+b - print breakpoints <br>
+b <func_name> [FALSE] - set/unset a breakpoint in the first line of function<br>
+b <line_number> [FALSE] - set/unset a breakpoint in current function<br>
+b <func_name> <line_number> [FALSE] - set/unset a breakpoint in function at line_number<br>
+w - where. Print the stack<br>
+u - up. Go up the stack<br>
+d - down. Go down the stack<br>
+l [nlines] - list. Print nlines of source before and after current position<br>
+l [nlines_back] [n_lines_forward] - list. Print source around current position<br>
+x expr - execute.  Evaluate expr. Any expression that doesn't match the above options will also be executed<br>
+<br>
+<br>
+Enjoy,<br>
+Ronen<br>
+
+ </p>
 
 <p> The <strong>project summary page</strong> you can find <a href="http://<?php echo $domain; ?>/projects/<?php echo $group_name; ?>/"><strong>here</strong></a>. </p>
 
