@@ -832,7 +832,7 @@ idbg.gui.get_tab <<- function(tab_name, b_create=FALSE, b_select=FALSE)
     note_entry.hscrollbar <- tkscrollbar(note_entry,command=function(...)tkxview(note_entry.text,...), orient="horiz") 
     note_entry.text <- tktext(note_entry, setgrid=1, height=20, undo=1, autosep=1, wrap="none", state="disabled",exportselection=1, yscrollcommand=function(...)tkset(note_entry.vscrollbar,...), xscrollcommand=function(...)tkset(note_entry.hscrollbar,...))
     tkpack(note_entry.vscrollbar,side="right",fill="y")
-    tkpack(note_entry.hscrollbar,side="bottom",expand="yes",fill="both")
+    tkpack(note_entry.hscrollbar,side="bottom",expand="no",fill="both")
     tkpack(note_entry.text, expand="yes", fill="both") 
     tktag.configure(note_entry.text, "ip_color", foreground="#00aa00")
     tktag.configure(note_entry.text, "bp_color", foreground="red")
@@ -866,29 +866,54 @@ idbg.gui.get_tab_obj <<- function(tab_name, b_create=FALSE, b_select= FALSE)
   tab_obj <- tcl("lindex",tcl(tt.pane.top.note, "tabs"),tabid)
 }
 
-idbg.gui.set_entry_text <<- function(tab_name, text_df, b_create=FALSE, b_select= FALSE)
+idbg.gui.set_entry_text <<- function(tab_name, text_df, b_create=FALSE, b_select= FALSE, incremental=TRUE)
 {
-  obj <- idbg.gui.get_tab_obj(tab_name,b_create, b_select)
+  obj <- idbg.gui.get_tab_obj(tab_name,FALSE, b_select)
+  #update_source <- incremental && is.null(obj)
+  cat("update_source=",update_source,"\n")
+  if (is.null(obj))
+    obj <- idbg.gui.get_tab_obj(tab_name,b_create, b_select)
   if (is.null(obj))
     return()
 
   text_entry_obj <- tcl("lindex", tkpack.slaves(obj),2)
   tkconfigure(text_entry_obj,state="normal")
-  tkdelete(text_entry_obj,"0.0","end")
-
-  n <- nrow(text_df)
-  for (i in seq_len(n))
+  
+  if (update_source)
   {
-    if (text_df$BP[[i]])
-      tkinsert(text_entry_obj, "end", "O", "bp_color")
-    else
-      tkinsert(text_entry_obj, "end", " ")
+    tkdelete(text_entry_obj,"0.0","end")
 
-    if (text_df$IP[[i]])
-      tkinsert(text_entry_obj, "end", "->", "ip_color")
-    else
-      tkinsert(text_entry_obj, "end", "  ")
-    tkinsert(text_entry_obj, "end", paste(text_df$SRC[[i]],"\n",sep=""))
+    n <- nrow(text_df)
+    for (i in seq_len(n))
+    {
+      if (text_df$BP[[i]])
+        tkinsert(text_entry_obj, "end", "O", "bp_color")
+      else
+        tkinsert(text_entry_obj, "end", " ")
+
+      if (text_df$IP[[i]])
+        tkinsert(text_entry_obj, "end", "->", "ip_color")
+      else
+        tkinsert(text_entry_obj, "end", "  ")
+        tkinsert(text_entry_obj, "end", paste(text_df$SRC[[i]],"\n",sep=""))
+    }
+  }
+  else
+  {
+    # just update the ip
+    v <-tktag.ranges(text_entry_obj, "ip_color")
+    nranges <- as.numeric(as.character(tcl("llength", v)))
+    for (i in (seq_len(nranges/2)-1)*2)
+    {
+      index1<-tcl("lindex", v,i)
+      index2<-tcl("lindex", v,i+1)
+
+      tktag.remove(text_entry_obj, "ip_color", index1, index2)
+      tcl(text_entry_obj, "replace", index1, index2, "  ")
+    }
+    ip_row <- which(text_df$IP)
+    tcl(text_entry_obj, "replace", paste(ip_row,1,sep="."), paste(ip_row,3,sep="."), "->", "ip_color")
+
   }
   tkconfigure(text_entry_obj,state="disabled")
 }
@@ -925,7 +950,7 @@ tt.pane.bottom.hscrollbar <- tkscrollbar(tt.pane.bottom,command=function(...)tkx
 tt.pane.bottom.text <- tktext(tt.pane.bottom, setgrid=1, height=7, undo=1, autosep=1, wrap="none", exportselection=1, yscrollcommand=function(...)tkset(tt.pane.bottom.vscrollbar,...), xscrollcommand=function(...)tkset(tt.pane.bottom.hscrollbar,...))
 tktag.configure(tt.pane.bottom.text, "cat_color", foreground="blue")
 tkpack(tt.pane.bottom.vscrollbar,side="right",fill="y")
-tkpack(tt.pane.bottom.hscrollbar,side="bottom",expand="yes", fill="both")
+tkpack(tt.pane.bottom.hscrollbar,side="bottom",expand="no", fill="both")
 tkpack(tt.pane.bottom.text, expand="yes", fill="both") 
 tkbind(tt.pane.bottom.text, "<Control-x>", function(K)idb.gui.bottom.key_press(tt.pane.bottom.text, "Control-x") )
 tkbind(tt.pane.bottom.text, "<Control-v>", function(K)idb.gui.bottom.key_press(tt.pane.bottom.text, "Control-v") )
