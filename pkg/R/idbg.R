@@ -21,7 +21,7 @@ idbg.init <- function(force=FALSE)
     idbg.data[["call_stack"]] <- list()
     idbg.data[["debug_frame"]] <- -1
     idbg.data[["ifunc_names"]] <- c()
-    idbg.data[["gui"]] <- suppressWarnings(library("tcltk", character.only =TRUE, logical.return=TRUE))
+    idbg.data[["gui"]] <- FALSE 	#suppressWarnings(library("tcltk", character.only =TRUE, logical.return=TRUE))
     idbg.data[["gui_toplevel"]] <- NULL
   }
   idbg <<- function() {
@@ -55,20 +55,54 @@ idbg.bp <- function( func_name, line_number=NA, condition=TRUE)
   breakpoint.ifunc(f, line_number, condition)
 }
 ###############################################################################
-idbg.print_breakpoints <- function()
+idbg.get_breakpoints <- function()
 {
   
   breakpoints <- NULL
   for (fname in idbg()[["ifunc_names"]])
   {
     f <-  idbg.match.ifunc(fname)
-    if (is.null(f))
+    if (is.null(f) || ! is.ifunc(f))
       next
     fbp <- list_breakpoints.ifunc(f)
-    if (length(fbp))
-      breakpoints <- rbind(breakpoints, data.frame("function"=fname,line=fbp))
+    if (nrow(fbp))
+      breakpoints <- rbind(breakpoints, data.frame("function_name"=fname,line=fbp$line, condition=fbp$condition, stringsAsFactors=FALSE))
   }
-  print(breakpoints)
+  return(breakpoints)
+}
+###############################################################################  
+idbg.print_breakpoints <- function()
+{  
+  breakpoints <- idbg.get_breakpoints()
+  for (line in capture.output(breakpoints))
+    idbg.cat(line,"\n")
+  idbg.cat("\n")
+  #print(breakpoints)
+}
+###############################################################################
+idbg.source <- function(fname)
+{
+  breakpoints <- idbg.get_breakpoints()
+  source(fname)
+  if (! is.null(breakpoints))
+  {
+    nbreakpoints<- nrow(breakpoints)
+    for (i in seq_len(nbreakpoints))
+    {
+      idbg.bp(breakpoints$function_name[[i]], breakpoints$line[[i]])
+    }
+  }
+}
+###############################################################################
+idbg.clear_all_breakpoints <- function()
+{
+  breakpoints <- idbg.get_breakpoints()
+  if (! is.null(breakpoints))
+  {
+    nbreakpoints<- nrow(breakpoints)
+    for (i in seq_len(nbreakpoints))
+      idbg.bp(breakpoints$function_name[[i]], breakpoints$line[[i]], FALSE)
+  }
 }
 ###############################################################################
 idbg.interact <- function(pos, func_name)
@@ -93,15 +127,16 @@ idbg.interact <- function(pos, func_name)
   breakpoints <- attr(func, "data")$breakpoints
   
   # eval the breakpoint at the parent - for conditional breakpoint support
-  if (! eval.parent(breakpoints[[pos]]))
+  if (! eval.parent(parse(text=breakpoints[[pos]])))
   {
     
     # no breakpoint at this point
     # we may stop in two cases
     # 1. step in command assigned the break_frame and we got to that frame
     # 2. we returned from a debugged function to the caller
-    if (! is.na(idbg()$break_frame) && frame_id-1 != idbg()$break_frame && last_debug_frame <= frame_id-1)
+    if (! is.na(idbg()$break_frame) && frame_id-1 != idbg()$break_frame) # && last_debug_frame <= frame_id-1)
       return(NULL)
+    #browser()
     assign("break_frame", -1, envir=idbg())
   }
 
@@ -192,10 +227,12 @@ idbg.interact <- function(pos, func_name)
       if (length(words) == 0)
         idbg.print_breakpoints()
       else
+	  if (words[[1]]=="FALSE")
+        idbg.clear_all_breakpoints()
+      else
       {
-        
         # if first argument is a number than break at current func otherwise it is a func name string
-        bp_line <-  as.numeric(words[[1]])
+        bp_line <-  suppressWarnings(as.numeric(words[[1]]))
         bp_cond_arg <- 2
         if (is.na(bp_line))
         {
@@ -214,12 +251,10 @@ idbg.interact <- function(pos, func_name)
           bp_func_name <- func_name
         }
 
-        # conditional breakpoint support not working yet - to set a breakpoint condition is TRUE, to clear FALSE
-        # condition <- parse(words[[2]])
-        bp_condition <- TRUE
-        if (length(words) >= bp_cond_arg && (words[[bp_cond_arg]] == "FALSE" || words[[bp_cond_arg]]=="F"))
-          bp_condition <- FALSE
-        
+        if (length(words) >= bp_cond_arg)
+		  bp_condition <- do.call("paste", as.list(words[bp_cond_arg:length(words)]))
+		else
+          bp_condition <- TRUE
         idbg.bp(bp_func_name, bp_line, bp_condition) 
       }
       
@@ -277,7 +312,8 @@ idbg.interact <- function(pos, func_name)
       idbg.cat("o - step out\n")
       idbg.cat("c - continue\n")
       idbg.cat("q - quit\n")
-      idbg.cat("b - print breakpoints - not implemented yet\n")
+      idbg.cat("b - print breakpoints\n")
+	  idbg.cat("b FALSE - clear all breakpoints\n")
       idbg.cat("b <func_name> [FALSE] - set/unset a breakpoint in first line of function\n")
       idbg.cat("b <line_number> [FALSE] - set/unset a breakpoint in current function\n")
       idbg.cat("b <func_name> <line_number> [FALSE] - set/unset a breakpoint in function at at line_number\n")
@@ -285,7 +321,7 @@ idbg.interact <- function(pos, func_name)
       idbg.cat("u - go up the stack\n")
       idbg.cat("d - go down the stack\n")
       idbg.cat("l [nlines] - print nlines of source before and after current position\n")
-      idbg.cat("l [nlines_back] [n_lines_forward] - print source around current position\n")
+      idbg.cat("l [nlines_back] [nlines_forward] - print source around current position\n")
       idbg.cat("x expr - execute expression. Any expression that doesn't match the above options will also be executed\n")
     }
     else
@@ -298,7 +334,6 @@ idbg.interact <- function(pos, func_name)
       }
       else
         expr <- line
-
       e<- try(
         #print(eval.parent(parse(text=expr))),
         capture.output(eval(parse(text=expr),envir=sys.frame(idbg()$debug_frame))),
@@ -308,7 +343,7 @@ idbg.interact <- function(pos, func_name)
         idbg.cat(geterrmessage())
       else
       {
-        for (line in e)
+		for (line in e)
           idbg.cat(line,"\n")
         idbg.cat("\n")
       }
@@ -557,9 +592,11 @@ breakpoint.ifunc <- function(f, line_number, expr=TRUE)
   if (is.na(line_number))
     d <- 1
   else
-    d <- which(line_number - key2line==0)
-  if (length(d) != 1)
+    d <- which.min(abs(line_number - key2line))
+  if (length(d) == 0)
     return(FALSE)
+  d <- d[[1]]	
+	
   if (is.na(expr))
     attr(f,"data")$breakpoints[[d]] <- ifelse( attr(f,"data")$breakpoints[[d]] == FALSE, TRUE, FALSE) 
   else
@@ -588,7 +625,8 @@ list_breakpoints.ifunc <- function(f)
     return(NULL)
   keys <- which(attr(f,"data")$breakpoints != FALSE)
   lines <- (attr(f, "data")$key2line)[keys]
-  return(lines)
+  conditions <- attr(f,"data")$breakpoints[keys]
+  return(data.frame(line=lines, condition=conditions, stringsAsFactors=FALSE))
 }
 ###############################################################################
 list_source.ifunc <- function(func, pos, back=10, forward=10)
@@ -665,11 +703,11 @@ list_source_extended.ifunc <- function(func, pos)
 ###############################################################################
 idbg.cat <- function(...)
 {
-  str <- do.call("paste", as.list(...))
+  str1 <- do.call("paste", list(...))
   if (idbg.gui_mode())
-    idb.gui.bottom.cat(str)
+    idb.gui.bottom.cat(str1)
   else
-    cat(str)
+    cat(str1)
 }
 ###############################################################################
 idbg.gui <- function()
@@ -679,6 +717,16 @@ tt <- tktoplevel()
 tkwm.protocol(tt,"WM_DELETE_WINDOW", function()idbg.gui.close())
 #tkbind(tt,"<Destroy>", function(W)cat("Bye\n"))
 
+tkbind( tt, "<KeyPress-F5>", function(K)idb.gui.key_press(K) )
+tkbind( tt, "<KeyPress-F6>", function(K)idb.gui.key_press(K) )
+tkbind( tt, "<KeyPress-F8>", function(K)idb.gui.key_press(K) )
+tkbind( tt, "<KeyPress-F9>", function(K)idb.gui.key_press(K) )
+
+idb.gui.send_cmd <<- function(cmd)
+{
+  if (cmd != "")
+    tcl("set", "idb_gui_user_cmd",cmd)
+}
 
 idbg.gui.close <- function()
 {
@@ -737,7 +785,7 @@ idb.gui.wait_for_usr_cmd <<- function()
 }
 
 
-idb.gui.key_press <<- function(note_entry.text, K, tab_name)
+idb.gui.key_press <<- function(K)
 {
   #cat("K='",K,"'\n",sep="")
   switch(K,
@@ -750,11 +798,7 @@ idb.gui.key_press <<- function(note_entry.text, K, tab_name)
   idb.gui.send_cmd(cmd)
 }
 
-idb.gui.send_cmd <<- function(cmd)
-{
-  if (cmd != "")
-    tcl("set", "idb_gui_user_cmd",cmd)
-}
+
 
 idb.gui.bottom.key_press <<- function(bottom.text, K)
 {
@@ -763,21 +807,22 @@ idb.gui.bottom.key_press <<- function(bottom.text, K)
   if (K == "Tab")
     K <- "\t"
 
-  #cat("K='",K,"'\n",sep="")  
+  cat("K='",K,"'\n",sep="")  
 
   pos <-strsplit(as.character(tkindex(bottom.text, "end")), "\\.")
+  last_char <- as.numeric(pos[[1]][[2]])
   last_line <- as.numeric(pos[[1]][[1]])-1
-  
+
   if (nchar(K) == 1 || K == "Delete" || K == "BackSpace" || K == "Return" || K == "Control-x" || K == "Control-v" || K == "Shift-Insert")
-  {1
+  {
     # if we are not at the last line set the insert position to the end of text
     pos <-strsplit(as.character(tkindex(bottom.text, "insert")), "\\.")
     line <- as.numeric(pos[[1]][[1]])
-    #cat("line=",line,"\n")
-    #cat("last_line=",last_line,"\n")
+    cat("line=",line,"\n")
+    cat("last_line=",last_line,"\n")
     if (line != last_line)
     {
-      if (K == "Control-x" || K == "Control-v" || K == "Shift-Insert")
+      if (K == "Control-x" || K == "Control-v" || K == "Shift-Insert" || K == "BackSpace")
       {
         # clear the selection
         v <-tktag.ranges(bottom.text, "sel")
@@ -791,6 +836,12 @@ idb.gui.bottom.key_press <<- function(bottom.text, K)
         }
       }
       tkmark.set(bottom.text, "insert", "end")
+    } 
+    else
+    if (K == "BackSpace")
+    {
+      if (last_char == 0)
+        tkinsert(bottom.text, "end", "\n")
     }
     else
     if (K == "Return")
@@ -804,7 +855,16 @@ idb.gui.bottom.key_press <<- function(bottom.text, K)
   if (K == "Return")
   {
     cmd <- as.character(tkget(bottom.text, sprintf("%d.0", last_line), "end"))
-    #cat("cmd='",cmd,"'\n", sep="")
+    if (last_char == 0 && last_line > 0)
+    {
+      cat("last_char=",last_char,"\n")
+      cat("last_line=",last_line,"\n")
+      # if we just got an ENTER don't print an empty line -> remove the last enter (==last character)
+      cat("kkkkkkkkkkkkkkkkkkk\n")
+      tkinsert(bottom.text, "end", "n")
+      #tkdelete(bottom.text,sprintf("%d.end",last_line-1) )
+      #tkmark.set(bottom.text, "insert", sprintf("%d.end",last_line-1))
+    }
 
     tcl("set", "idb_gui_user_cmd",cmd)
   }
@@ -839,10 +899,10 @@ idbg.gui.get_tab <<- function(tab_name, b_create=FALSE, b_select=FALSE)
     tkadd(tt.pane.top.note, note_entry, text=tab_name, underline=0, padding=2)
     tkbind( note_entry.text, "<Button-3>", function(x,y)idb.gui.right_click(note_entry.text,x, y, tab_name) )
     tkbind( note_entry.text, "<Button-1>", function(x,y)idb.gui.left_click(note_entry.text, x, y, tab_name) )
-    tkbind( note_entry.text, "<KeyPress-F5>", function(K)idb.gui.key_press(note_entry.text, K, tab_name) )
-    tkbind( note_entry.text, "<KeyPress-F6>", function(K)idb.gui.key_press(note_entry.text, K, tab_name) )
-    tkbind( note_entry.text, "<KeyPress-F8>", function(K)idb.gui.key_press(note_entry.text, K, tab_name) )
-    tkbind( note_entry.text, "<KeyPress-F9>", function(K)idb.gui.key_press(note_entry.text, K, tab_name) )
+    tkbind( note_entry.text, "<KeyPress-F5>", function(K)idb.gui.key_press(K) )
+    tkbind( note_entry.text, "<KeyPress-F6>", function(K)idb.gui.key_press(K) )
+    tkbind( note_entry.text, "<KeyPress-F8>", function(K)idb.gui.key_press(K) )
+    tkbind( note_entry.text, "<KeyPress-F9>", function(K)idb.gui.key_press(K) )
 
     if (b_select)
       tkselect(tt.pane.top.note, tkindex(tt.pane.top.note,ntabs))
@@ -869,8 +929,8 @@ idbg.gui.get_tab_obj <<- function(tab_name, b_create=FALSE, b_select= FALSE)
 idbg.gui.set_entry_text <<- function(tab_name, text_df, b_create=FALSE, b_select= FALSE, incremental=TRUE)
 {
   obj <- idbg.gui.get_tab_obj(tab_name,FALSE, b_select)
-  #update_source <- incremental && is.null(obj)
-  cat("update_source=",update_source,"\n")
+  update_source <- incremental && is.null(obj)
+  #cat("update_source=",update_source,"\n")
   if (is.null(obj))
     obj <- idbg.gui.get_tab_obj(tab_name,b_create, b_select)
   if (is.null(obj))
