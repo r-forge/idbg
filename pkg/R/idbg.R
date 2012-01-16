@@ -52,7 +52,7 @@ idbg.bp <- function( func_name, line_number=NA, condition=TRUE)
   #func_name <- as.character(substitute(func_name))
   f <- ifunc(func_name)
 
-  breakpoint.ifunc(f, line_number, condition)
+  return(breakpoint.ifunc(f, line_number, condition))
 }
 ###############################################################################
 idbg.get_breakpoints <- function()
