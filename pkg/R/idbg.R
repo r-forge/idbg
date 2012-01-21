@@ -1038,7 +1038,8 @@ return(invisible())
 }
 
 
-
-
-
-idbg.init()
+.First.lib <- function(lib, pkg)
+{
+  idbg.init()
+}
+  

@@ -1,0 +1,10 @@
+Package: idbg
+Type: Package
+Title: R debugger
+Version: 1.0
+Date: 2012-01-16
+Author: Ronen Kimchi
+Maintainer: Ronen Kimchi <mitzpaz@gmail.com>
+Description: An interactive R debugger
+License: GPL-2
+LazyLoad: yes
