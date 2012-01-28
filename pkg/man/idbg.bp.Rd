@@ -50,7 +50,7 @@ foo <- function(x,y)
 
 # call foo to enter the debugger
 # in the debugger type h to see the help
-# use n or enter to go to step over
+# use n or enter to step over
 # use s to step into bar
 \dontrun{foo(2,3)}
 
