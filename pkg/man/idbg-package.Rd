@@ -44,11 +44,7 @@ Ronen Kimchi
 
 Maintainer: mitzpaz@gmail.com
 }
-\references{
-}
 \keyword{ package }
 \seealso{
-}
-\examples{
-
+\code{\link{idbg.bp}}
 }

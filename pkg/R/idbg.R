@@ -12,40 +12,50 @@
 # of function idbg. Use function idbg() to get that environment
 #
 ###############################################################################
+
 idbg.init <- function(force=FALSE)
 {
-  if (!exists("idbg.data") || force) 
-  {
-    idbg.data <- new.env() 
-    idbg.data[["break_frame"]] <- -1
-    idbg.data[["call_stack"]] <- list()
-    idbg.data[["debug_frame"]] <- -1
-    idbg.data[["ifunc_names"]] <- c()
-    idbg.data[["gui"]] <- FALSE 	#suppressWarnings(library("tcltk", character.only =TRUE, logical.return=TRUE))
-    idbg.data[["gui_toplevel"]] <- NULL
-  }
-  idbg <<- function() {
-    return(idbg.data)
-  }
-  idbg.call_stack_top <<- function(frame_id, func_name, pos)
-  {
-    idbg.data$call_stack[[frame_id]] <- list(func_name, pos)
-    length(idbg.data$call_stack) <- frame_id
-  }
-  idbg.add_ifunc <<- function(fname)
-  {
-    if (! (fname %in% idbg.data$ifunc_names))
-      idbg.data$ifunc_names <- c(idbg.data$ifunc_names, fname)
-  }
-  idbg.gui_mode <<- function(is_gui=NA)
-  {
-    is_gui <- as.logical(is_gui)
-    if (is.na(is_gui))
-      return(idbg.data$gui)
-    idbg.data$gui <- is_gui
-    return(idbg.data$gui)
-  }
+#  if (!exists("idbg.data") || force) 
+#  {
+#    idbg.data <- new.env() 
+#    idbg.data[["break_frame"]] <- -1
+#    idbg.data[["call_stack"]] <- list()
+#    idbg.data[["debug_frame"]] <- -1
+#    idbg.data[["ifunc_names"]] <- c()
+#    idbg.data[["gui"]] <- FALSE 	#suppressWarnings(library("tcltk", character.only =TRUE, logical.return=TRUE))
+#    idbg.data[["gui_toplevel"]] <- NULL
+#  }
+
 }
+
+idbg <- function() {
+  return(idbg.data)
+}
+
+idbg.call_stack_top <- function(frame_id, func_name, pos)
+{
+  idbg.data$call_stack[[frame_id]] <- list(func_name, pos)
+  length(idbg.data$call_stack) <- frame_id
+}
+
+
+idbg.add_ifunc <- function(fname)
+{
+  if (! (fname %in% idbg.data$ifunc_names))
+    idbg.data$ifunc_names <- c(idbg.data$ifunc_names, fname)
+}
+
+idbg.gui_mode <- function(is_gui=NA)
+{
+  return(FALSE)
+#  is_gui <- as.logical(is_gui)
+#  if (is.na(is_gui))
+#    return(idbg.data$gui)
+#  idbg.data$gui <- is_gui
+#  return(idbg.data$gui)
+}
+
+
 ###############################################################################
 idbg.bp <- function( func_name, line_number=NA, condition=TRUE)
 {
@@ -140,18 +150,19 @@ idbg.interact <- function(pos, func_name)
     assign("break_frame", -1, envir=idbg())
   }
 
-
-  if (gui)
-    idbg.gui.set_entry_text(func_name,list_source_extended.ifunc(func, pos), TRUE,TRUE)
-  else
+# GUI not implemented in current version
+#  if (gui)
+#    idbg.gui.set_entry_text(func_name,list_source_extended.ifunc(func, pos), TRUE,TRUE)
+#  else
     cat(list_source.ifunc(func, pos))
 
 
   while (debug_loop)
   {
-    if (gui)
-      line <- idb.gui.wait_for_usr_cmd()
-    else
+    # GUI not implemented in current version
+	#if (gui)
+    #  line <- idb.gui.wait_for_usr_cmd()
+    #else
       line <- readline(sprintf("debug %d: ",pos));
 
     if (line == "")
@@ -206,9 +217,10 @@ idbg.interact <- function(pos, func_name)
     {
       q <- idbg()$call_stack[[idbg()$debug_frame]]
       lfunc <- q[[1]]
-      if (gui)
-        idbg.gui.set_entry_text(lfunc,list_source_extended.ifunc(lfunc, NA), TRUE,TRUE)
-      else
+      # GUI not implemented in current version
+	  #if (gui)
+      #  idbg.gui.set_entry_text(lfunc,list_source_extended.ifunc(lfunc, NA), TRUE,TRUE)
+      #else
       {
         lpos <- q[[2]]
         if (length(words) == 0)
@@ -258,8 +270,9 @@ idbg.interact <- function(pos, func_name)
         idbg.bp(bp_func_name, bp_line, bp_condition) 
       }
       
-      if (gui)
-        idbg.gui.set_entry_text(func_name,list_source_extended.ifunc(func, pos), TRUE,TRUE)
+      # GUI not implemented in current version
+	  #if (gui)
+      #  idbg.gui.set_entry_text(func_name,list_source_extended.ifunc(func, pos), TRUE,TRUE)
 
     }
     else
@@ -530,6 +543,21 @@ ifunc <- function(fname)
       break
     }
   }
+  
+  # looking for the function in packages doesn't work as there is no way to assign to the instrumented copy
+  # cannot change value of locked binding for 'fname'
+  #if (! found)
+  #{
+  #  for (envir in search()[-1])
+  #	{
+  #	  if (exists(fname, where = envir, mode = "function", inherits = FALSE))
+  #	  {
+  #	    func <- get(fname, pos = envir, mode = "function", inherits = FALSE)
+  #		found <- TRUE
+  #		break
+  #	  }
+  #	}  
+  #}
 
   if (! found)
     return(NULL)
@@ -562,7 +590,10 @@ ifunc <- function(fname)
   
   
   idbg.add_ifunc(fname)
-  assign(fname, ret, envir=envir)
+  if (is.character(envir))
+    assign(fname, ret, pos=envir)
+  else	
+    assign(fname, ret, envir=envir)
 }
 ###############################################################################
 is.ifunc <- function(x)
@@ -704,342 +735,353 @@ list_source_extended.ifunc <- function(func, pos)
 idbg.cat <- function(...)
 {
   str1 <- do.call("paste", list(...))
-  if (idbg.gui_mode())
-    idb.gui.bottom.cat(str1)
-  else
+  # GUI not implemented in current version
+  #if (idbg.gui_mode())
+  #  idb.gui.bottom.cat(str1)
+  #else
     cat(str1)
 }
 ###############################################################################
 idbg.gui <- function()
 {
-
-tt <- tktoplevel()
-tkwm.protocol(tt,"WM_DELETE_WINDOW", function()idbg.gui.close())
-#tkbind(tt,"<Destroy>", function(W)cat("Bye\n"))
-
-tkbind( tt, "<KeyPress-F5>", function(K)idb.gui.key_press(K) )
-tkbind( tt, "<KeyPress-F6>", function(K)idb.gui.key_press(K) )
-tkbind( tt, "<KeyPress-F8>", function(K)idb.gui.key_press(K) )
-tkbind( tt, "<KeyPress-F9>", function(K)idb.gui.key_press(K) )
-
-idb.gui.send_cmd <<- function(cmd)
-{
-  if (cmd != "")
-    tcl("set", "idb_gui_user_cmd",cmd)
-}
-
-idbg.gui.close <- function()
-{
-  idb.gui.send_cmd("q") 
-  tkdestroy(tt)
-  assign("gui_toplevel", NULL, envir=idbg())
-}
-
-
-tt.menu <- tkmenu(tt, tearoff=0)
-
-tt.menu.file <-tkmenu(tt.menu, tearoff=0)
-tkadd(tt.menu, "cascade", label="File", menu=tt.menu.file, underline=0)
-tkadd(tt.menu.file, "command", label="Exit", command=function()idbg.gui.close())
-tkconfigure(tt,menu=tt.menu)
-#$m add separator
-
-
-tt.pane <- ttkpanedwindow(tt,orient="vertical")
-tt.pane.top <- ttkframe(tt.pane)
-tt.pane.bottom <- ttkframe(tt.pane)
-
-
-## Make the notebook and set up Ctrl+Tab traversal
-tt.pane.top.note <- ttknotebook(tt.pane.top)
-tkpack(tt.pane.top.note, fill="both", expand=1, padx=2, pady=3)
-#ttk::notebook::enableTraversal $w.note
-
-idb.gui.left_click <<- function(note_entry.text,x,y, func_name)
-{
-  addr <- strsplit(as.character(tkindex(note_entry.text,paste("@",x,",",y,sep=""))),"\\.")
-  row <- as.numeric(addr[[1]][[1]])
-  col <- as.numeric(addr[[1]][[2]])
-
-  #cat("left click",x,y, row,col,"\n")
-  if (col ==0)
-    idbg.bp( func_name, row-1, NA)
-  idbg.gui.set_entry_bp(note_entry.text, row, line_breakpoint.ifunc(ifunc(func_name), row-1))
-}
-
-idb.gui.right_click <<- function(note_entry.text,x,y)
-{
-  row.col <- tkindex(w,paste("@",note_entry.text,",",y,sep=""))
-  cat("right click",x,y, as.character(tkindex(w,paste("@",note_entry.text,",",y,sep=""))),"\n")
-
-}
-
-
-idb.gui.wait_for_usr_cmd <<- function()
-{
-  tcl("set", "idb_gui_user_cmd","")
-  tkwait.variable("idb_gui_user_cmd")
-  cmd <- as.character(tclvalue("idb_gui_user_cmd"))
-  #cat("idb.gui.wait_for_usr_cmd: cmd='",cmd,"'\n",sep="")
-  return(cmd)
-}
-
-
-idb.gui.key_press <<- function(K)
-{
-  #cat("K='",K,"'\n",sep="")
-  switch(K,
-    F5={ cmd<- "s" },
-    F6={ cmd<- "n" },
-    F8={ cmd<- "o" },
-    F9={ cmd<- "c" }
-  )
-
-  idb.gui.send_cmd(cmd)
-}
-
-
-
-idb.gui.bottom.key_press <<- function(bottom.text, K)
-{
-  if (K == "space")
-    K <- " "
-  if (K == "Tab")
-    K <- "\t"
-
-  cat("K='",K,"'\n",sep="")  
-
-  pos <-strsplit(as.character(tkindex(bottom.text, "end")), "\\.")
-  last_char <- as.numeric(pos[[1]][[2]])
-  last_line <- as.numeric(pos[[1]][[1]])-1
-
-  if (nchar(K) == 1 || K == "Delete" || K == "BackSpace" || K == "Return" || K == "Control-x" || K == "Control-v" || K == "Shift-Insert")
-  {
-    # if we are not at the last line set the insert position to the end of text
-    pos <-strsplit(as.character(tkindex(bottom.text, "insert")), "\\.")
-    line <- as.numeric(pos[[1]][[1]])
-    cat("line=",line,"\n")
-    cat("last_line=",last_line,"\n")
-    if (line != last_line)
-    {
-      if (K == "Control-x" || K == "Control-v" || K == "Shift-Insert" || K == "BackSpace")
-      {
-        # clear the selection
-        v <-tktag.ranges(bottom.text, "sel")
-        nranges <- as.numeric(as.character(tcl("llength", v)))
-        for (i in (seq_len(nranges/2)-1)*2)
-        {
-          index1<-tcl("lindex", v,i)
-          index2<-tcl("lindex", v,i+1)
-
-          tktag.remove(bottom.text, "sel", index1, index2)
-        }
-      }
-      tkmark.set(bottom.text, "insert", "end")
-    } 
-    else
-    if (K == "BackSpace")
-    {
-      if (last_char == 0)
-        tkinsert(bottom.text, "end", "\n")
-    }
-    else
-    if (K == "Return")
-    {
-      # if enter is pressed while in the middle of the text right to the insert will me moved to next line
-      # avoid that by moving to the end of line anyway
-      tkmark.set(bottom.text, "insert", "end")
-    }
-  }
-  
-  if (K == "Return")
-  {
-    cmd <- as.character(tkget(bottom.text, sprintf("%d.0", last_line), "end"))
-    if (last_char == 0 && last_line > 0)
-    {
-      cat("last_char=",last_char,"\n")
-      cat("last_line=",last_line,"\n")
-      # if we just got an ENTER don't print an empty line -> remove the last enter (==last character)
-      cat("kkkkkkkkkkkkkkkkkkk\n")
-      tkinsert(bottom.text, "end", "n")
-      #tkdelete(bottom.text,sprintf("%d.end",last_line-1) )
-      #tkmark.set(bottom.text, "insert", sprintf("%d.end",last_line-1))
-    }
-
-    tcl("set", "idb_gui_user_cmd",cmd)
-  }
-}
-
-
-idbg.gui.get_tab <<- function(tab_name, b_create=FALSE, b_select=FALSE)
-{
-  ntabs <- as.integer(as.character(tkindex(tt.pane.top.note,"end")))
-  for (tabid in seq_len(ntabs)-1)
-  {
-    tab_text <- as.character(tcl(tt.pane.top.note, "tab",tabid,"-text"))  
-    if (tab_text == tab_name)
-    {
-      if (b_select)
-        tkselect(tt.pane.top.note, tkindex(tt.pane.top.note,tabid))
-
-      return(tabid)
-    }
-  } 
-  if (b_create)
-  {
-    note_entry <- ttkframe(tt.pane.top.note)
-    note_entry.vscrollbar <- tkscrollbar(note_entry,command=function(...)tkyview(note_entry.text,...)) 
-    note_entry.hscrollbar <- tkscrollbar(note_entry,command=function(...)tkxview(note_entry.text,...), orient="horiz") 
-    note_entry.text <- tktext(note_entry, setgrid=1, height=20, undo=1, autosep=1, wrap="none", state="disabled",exportselection=1, yscrollcommand=function(...)tkset(note_entry.vscrollbar,...), xscrollcommand=function(...)tkset(note_entry.hscrollbar,...))
-    tkpack(note_entry.vscrollbar,side="right",fill="y")
-    tkpack(note_entry.hscrollbar,side="bottom",expand="no",fill="both")
-    tkpack(note_entry.text, expand="yes", fill="both") 
-    tktag.configure(note_entry.text, "ip_color", foreground="#00aa00")
-    tktag.configure(note_entry.text, "bp_color", foreground="red")
-    tkadd(tt.pane.top.note, note_entry, text=tab_name, underline=0, padding=2)
-    tkbind( note_entry.text, "<Button-3>", function(x,y)idb.gui.right_click(note_entry.text,x, y, tab_name) )
-    tkbind( note_entry.text, "<Button-1>", function(x,y)idb.gui.left_click(note_entry.text, x, y, tab_name) )
-    tkbind( note_entry.text, "<KeyPress-F5>", function(K)idb.gui.key_press(K) )
-    tkbind( note_entry.text, "<KeyPress-F6>", function(K)idb.gui.key_press(K) )
-    tkbind( note_entry.text, "<KeyPress-F8>", function(K)idb.gui.key_press(K) )
-    tkbind( note_entry.text, "<KeyPress-F9>", function(K)idb.gui.key_press(K) )
-
-    if (b_select)
-      tkselect(tt.pane.top.note, tkindex(tt.pane.top.note,ntabs))
-    return(ntabs)
-  }
-
-  return(-1)
-}
-
-idbg.gui.create_tab <<- function(tab_name)
-{
-  idbg.gui.get_tab(tab_name, TRUE)
-}
-
-idbg.gui.get_tab_obj <<- function(tab_name, b_create=FALSE, b_select= FALSE)
-{
-  tabid <- idbg.gui.get_tab(tab_name, b_create, b_select)  
-  if (tabid == -1)
-    return(NULL)
-
-  tab_obj <- tcl("lindex",tcl(tt.pane.top.note, "tabs"),tabid)
-}
-
-idbg.gui.set_entry_text <<- function(tab_name, text_df, b_create=FALSE, b_select= FALSE, incremental=TRUE)
-{
-  obj <- idbg.gui.get_tab_obj(tab_name,FALSE, b_select)
-  update_source <- incremental && is.null(obj)
-  #cat("update_source=",update_source,"\n")
-  if (is.null(obj))
-    obj <- idbg.gui.get_tab_obj(tab_name,b_create, b_select)
-  if (is.null(obj))
-    return()
-
-  text_entry_obj <- tcl("lindex", tkpack.slaves(obj),2)
-  tkconfigure(text_entry_obj,state="normal")
-  
-  if (update_source)
-  {
-    tkdelete(text_entry_obj,"0.0","end")
-
-    n <- nrow(text_df)
-    for (i in seq_len(n))
-    {
-      if (text_df$BP[[i]])
-        tkinsert(text_entry_obj, "end", "O", "bp_color")
-      else
-        tkinsert(text_entry_obj, "end", " ")
-
-      if (text_df$IP[[i]])
-        tkinsert(text_entry_obj, "end", "->", "ip_color")
-      else
-        tkinsert(text_entry_obj, "end", "  ")
-        tkinsert(text_entry_obj, "end", paste(text_df$SRC[[i]],"\n",sep=""))
-    }
-  }
-  else
-  {
-    # just update the ip
-    v <-tktag.ranges(text_entry_obj, "ip_color")
-    nranges <- as.numeric(as.character(tcl("llength", v)))
-    for (i in (seq_len(nranges/2)-1)*2)
-    {
-      index1<-tcl("lindex", v,i)
-      index2<-tcl("lindex", v,i+1)
-
-      tktag.remove(text_entry_obj, "ip_color", index1, index2)
-      tcl(text_entry_obj, "replace", index1, index2, "  ")
-    }
-    ip_row <- which(text_df$IP)
-    tcl(text_entry_obj, "replace", paste(ip_row,1,sep="."), paste(ip_row,3,sep="."), "->", "ip_color")
-
-  }
-  tkconfigure(text_entry_obj,state="disabled")
-}
-
-
-
-idbg.gui.set_entry_bp <<- function(text_entry_obj, row, value)
-{
-  tkconfigure(text_entry_obj,state="normal")
-  
-  pos <- sprintf("%d.0",row)
-  tkdelete(text_entry_obj,pos)
-  if (is.logical(value) && value == FALSE)
-    tkinsert(text_entry_obj, pos, " ")
-  else
-    tkinsert(text_entry_obj, pos, "O", "bp_color")
-    
-  tkconfigure(text_entry_obj,state="disabled")
-}
-
-
-
-idbg.gui.create_tab("help")
-
-#tkselect(tt.pane.top.note, tkindex(tt.pane.top.note,"2"))
-#txt<-tkcget(tt.pane.top.note,"text")
-#txt <- as.character(tcl(tt.pane.top.note, "tab","2","-text"))
-#cat(txt,"\n")
-
-
-
-tt.pane.bottom.vscrollbar <- tkscrollbar(tt.pane.bottom,command=function(...)tkyview(tt.pane.bottom.text,...)) 
-tt.pane.bottom.hscrollbar <- tkscrollbar(tt.pane.bottom,command=function(...)tkxview(tt.pane.bottom.text,...), orient="horiz") 
-tt.pane.bottom.text <- tktext(tt.pane.bottom, setgrid=1, height=7, undo=1, autosep=1, wrap="none", exportselection=1, yscrollcommand=function(...)tkset(tt.pane.bottom.vscrollbar,...), xscrollcommand=function(...)tkset(tt.pane.bottom.hscrollbar,...))
-tktag.configure(tt.pane.bottom.text, "cat_color", foreground="blue")
-tkpack(tt.pane.bottom.vscrollbar,side="right",fill="y")
-tkpack(tt.pane.bottom.hscrollbar,side="bottom",expand="no", fill="both")
-tkpack(tt.pane.bottom.text, expand="yes", fill="both") 
-tkbind(tt.pane.bottom.text, "<Control-x>", function(K)idb.gui.bottom.key_press(tt.pane.bottom.text, "Control-x") )
-tkbind(tt.pane.bottom.text, "<Control-v>", function(K)idb.gui.bottom.key_press(tt.pane.bottom.text, "Control-v") )
-tkbind(tt.pane.bottom.text, "<Shift-Insert>", function(K)idb.gui.bottom.key_press(tt.pane.bottom.text, "Shift-Insert") )
-tkbind(tt.pane.bottom.text, "<KeyPress>", function(K)idb.gui.bottom.key_press(tt.pane.bottom.text, K) )
-
-
-tkadd(tt.pane, tt.pane.top)
-tkadd(tt.pane, tt.pane.bottom)
-
-
-tkpack(tt.pane,side="top",expand="yes",fill="both",pady=2,padx="2m")
-
-
-idb.gui.bottom.cat <<- function(str)
-{
-  tkinsert(tt.pane.bottom.text, "end", str, "cat_color")
-  tkyview(tt.pane.bottom.text, "moveto","1.0")
-}
-
-assign("gui_toplevel", tt, envir=idbg())
-
-return(invisible())
-
+#
+#tt <- tktoplevel()
+#tkwm.protocol(tt,"WM_DELETE_WINDOW", function()idbg.gui.close())
+##tkbind(tt,"<Destroy>", function(W)cat("Bye\n"))
+#
+#tkbind( tt, "<KeyPress-F5>", function(K)idb.gui.key_press(K) )
+#tkbind( tt, "<KeyPress-F6>", function(K)idb.gui.key_press(K) )
+#tkbind( tt, "<KeyPress-F8>", function(K)idb.gui.key_press(K) )
+#tkbind( tt, "<KeyPress-F9>", function(K)idb.gui.key_press(K) )
+#
+#idb.gui.send_cmd <<- function(cmd)
+#{
+#  if (cmd != "")
+#    tcl("set", "idb_gui_user_cmd",cmd)
+#}
+#
+#idbg.gui.close <- function()
+#{
+#  idb.gui.send_cmd("q") 
+#  tkdestroy(tt)
+#  assign("gui_toplevel", NULL, envir=idbg())
+#}
+#
+#
+#tt.menu <- tkmenu(tt, tearoff=0)
+#
+#tt.menu.file <-tkmenu(tt.menu, tearoff=0)
+#tkadd(tt.menu, "cascade", label="File", menu=tt.menu.file, underline=0)
+#tkadd(tt.menu.file, "command", label="Exit", command=function()idbg.gui.close())
+#tkconfigure(tt,menu=tt.menu)
+##$m add separator
+#
+#
+#tt.pane <- ttkpanedwindow(tt,orient="vertical")
+#tt.pane.top <- ttkframe(tt.pane)
+#tt.pane.bottom <- ttkframe(tt.pane)
+#
+#
+### Make the notebook and set up Ctrl+Tab traversal
+#tt.pane.top.note <- ttknotebook(tt.pane.top)
+#tkpack(tt.pane.top.note, fill="both", expand=1, padx=2, pady=3)
+##ttk::notebook::enableTraversal $w.note
+#
+#idb.gui.left_click <<- function(note_entry.text,x,y, func_name)
+#{
+#  addr <- strsplit(as.character(tkindex(note_entry.text,paste("@",x,",",y,sep=""))),"\\.")
+#  row <- as.numeric(addr[[1]][[1]])
+#  col <- as.numeric(addr[[1]][[2]])
+#
+#  #cat("left click",x,y, row,col,"\n")
+#  if (col ==0)
+#    idbg.bp( func_name, row-1, NA)
+#  idbg.gui.set_entry_bp(note_entry.text, row, line_breakpoint.ifunc(ifunc(func_name), row-1))
+#}
+#
+#idb.gui.right_click <<- function(note_entry.text,x,y)
+#{
+#  row.col <- tkindex(w,paste("@",note_entry.text,",",y,sep=""))
+#  cat("right click",x,y, as.character(tkindex(w,paste("@",note_entry.text,",",y,sep=""))),"\n")
+#
+#}
+#
+#
+#idb.gui.wait_for_usr_cmd <<- function()
+#{
+#  tcl("set", "idb_gui_user_cmd","")
+#  tkwait.variable("idb_gui_user_cmd")
+#  cmd <- as.character(tclvalue("idb_gui_user_cmd"))
+#  #cat("idb.gui.wait_for_usr_cmd: cmd='",cmd,"'\n",sep="")
+#  return(cmd)
+#}
+#
+#
+#idb.gui.key_press <<- function(K)
+#{
+#  #cat("K='",K,"'\n",sep="")
+#  switch(K,
+#    F5={ cmd<- "s" },
+#    F6={ cmd<- "n" },
+#    F8={ cmd<- "o" },
+#    F9={ cmd<- "c" }
+#  )
+#
+#  idb.gui.send_cmd(cmd)
+#}
+#
+#
+#
+#idb.gui.bottom.key_press <<- function(bottom.text, K)
+#{
+#  if (K == "space")
+#    K <- " "
+#  if (K == "Tab")
+#    K <- "\t"
+#
+#  cat("K='",K,"'\n",sep="")  
+#
+#  pos <-strsplit(as.character(tkindex(bottom.text, "end")), "\\.")
+#  last_char <- as.numeric(pos[[1]][[2]])
+#  last_line <- as.numeric(pos[[1]][[1]])-1
+#
+#  if (nchar(K) == 1 || K == "Delete" || K == "BackSpace" || K == "Return" || K == "Control-x" || K == "Control-v" || K == "Shift-Insert")
+#  {
+#    # if we are not at the last line set the insert position to the end of text
+#    pos <-strsplit(as.character(tkindex(bottom.text, "insert")), "\\.")
+#    line <- as.numeric(pos[[1]][[1]])
+#    cat("line=",line,"\n")
+#    cat("last_line=",last_line,"\n")
+#    if (line != last_line)
+#    {
+#      if (K == "Control-x" || K == "Control-v" || K == "Shift-Insert" || K == "BackSpace")
+#      {
+#        # clear the selection
+#        v <-tktag.ranges(bottom.text, "sel")
+#        nranges <- as.numeric(as.character(tcl("llength", v)))
+#        for (i in (seq_len(nranges/2)-1)*2)
+#        {
+#          index1<-tcl("lindex", v,i)
+#          index2<-tcl("lindex", v,i+1)
+#
+#          tktag.remove(bottom.text, "sel", index1, index2)
+#        }
+#      }
+#      tkmark.set(bottom.text, "insert", "end")
+#    } 
+#    else
+#    if (K == "BackSpace")
+#    {
+#      if (last_char == 0)
+#        tkinsert(bottom.text, "end", "\n")
+#    }
+#    else
+#    if (K == "Return")
+#    {
+#      # if enter is pressed while in the middle of the text right to the insert will me moved to next line
+#      # avoid that by moving to the end of line anyway
+#      tkmark.set(bottom.text, "insert", "end")
+#    }
+#  }
+#  
+#  if (K == "Return")
+#  {
+#    cmd <- as.character(tkget(bottom.text, sprintf("%d.0", last_line), "end"))
+#    if (last_char == 0 && last_line > 0)
+#    {
+#      cat("last_char=",last_char,"\n")
+#      cat("last_line=",last_line,"\n")
+#      # if we just got an ENTER don't print an empty line -> remove the last enter (==last character)
+#      cat("kkkkkkkkkkkkkkkkkkk\n")
+#      tkinsert(bottom.text, "end", "n")
+#      #tkdelete(bottom.text,sprintf("%d.end",last_line-1) )
+#      #tkmark.set(bottom.text, "insert", sprintf("%d.end",last_line-1))
+#    }
+#
+#    tcl("set", "idb_gui_user_cmd",cmd)
+#  }
+#}
+#
+#
+#idbg.gui.get_tab <<- function(tab_name, b_create=FALSE, b_select=FALSE)
+#{
+#  ntabs <- as.integer(as.character(tkindex(tt.pane.top.note,"end")))
+#  for (tabid in seq_len(ntabs)-1)
+#  {
+#    tab_text <- as.character(tcl(tt.pane.top.note, "tab",tabid,"-text"))  
+#    if (tab_text == tab_name)
+#    {
+#      if (b_select)
+#        tkselect(tt.pane.top.note, tkindex(tt.pane.top.note,tabid))
+#
+#      return(tabid)
+#    }
+#  } 
+#  if (b_create)
+#  {
+#    note_entry <- ttkframe(tt.pane.top.note)
+#    note_entry.vscrollbar <- tkscrollbar(note_entry,command=function(...)tkyview(note_entry.text,...)) 
+#    note_entry.hscrollbar <- tkscrollbar(note_entry,command=function(...)tkxview(note_entry.text,...), orient="horiz") 
+#    note_entry.text <- tktext(note_entry, setgrid=1, height=20, undo=1, autosep=1, wrap="none", state="disabled",exportselection=1, yscrollcommand=function(...)tkset(note_entry.vscrollbar,...), xscrollcommand=function(...)tkset(note_entry.hscrollbar,...))
+#    tkpack(note_entry.vscrollbar,side="right",fill="y")
+#    tkpack(note_entry.hscrollbar,side="bottom",expand="no",fill="both")
+#    tkpack(note_entry.text, expand="yes", fill="both") 
+#    tktag.configure(note_entry.text, "ip_color", foreground="#00aa00")
+#    tktag.configure(note_entry.text, "bp_color", foreground="red")
+#    tkadd(tt.pane.top.note, note_entry, text=tab_name, underline=0, padding=2)
+#    tkbind( note_entry.text, "<Button-3>", function(x,y)idb.gui.right_click(note_entry.text,x, y, tab_name) )
+#    tkbind( note_entry.text, "<Button-1>", function(x,y)idb.gui.left_click(note_entry.text, x, y, tab_name) )
+#    tkbind( note_entry.text, "<KeyPress-F5>", function(K)idb.gui.key_press(K) )
+#    tkbind( note_entry.text, "<KeyPress-F6>", function(K)idb.gui.key_press(K) )
+#    tkbind( note_entry.text, "<KeyPress-F8>", function(K)idb.gui.key_press(K) )
+#    tkbind( note_entry.text, "<KeyPress-F9>", function(K)idb.gui.key_press(K) )
+#
+#    if (b_select)
+#      tkselect(tt.pane.top.note, tkindex(tt.pane.top.note,ntabs))
+#    return(ntabs)
+#  }
+#
+#  return(-1)
+#}
+#
+#idbg.gui.create_tab <<- function(tab_name)
+#{
+#  idbg.gui.get_tab(tab_name, TRUE)
+#}
+#
+#idbg.gui.get_tab_obj <<- function(tab_name, b_create=FALSE, b_select= FALSE)
+#{
+#  tabid <- idbg.gui.get_tab(tab_name, b_create, b_select)  
+#  if (tabid == -1)
+#    return(NULL)
+#
+#  tab_obj <- tcl("lindex",tcl(tt.pane.top.note, "tabs"),tabid)
+#}
+#
+#idbg.gui.set_entry_text <<- function(tab_name, text_df, b_create=FALSE, b_select= FALSE, incremental=TRUE)
+#{
+#  obj <- idbg.gui.get_tab_obj(tab_name,FALSE, b_select)
+#  update_source <- incremental && is.null(obj)
+#  #cat("update_source=",update_source,"\n")
+#  if (is.null(obj))
+#    obj <- idbg.gui.get_tab_obj(tab_name,b_create, b_select)
+#  if (is.null(obj))
+#    return()
+#
+#  text_entry_obj <- tcl("lindex", tkpack.slaves(obj),2)
+#  tkconfigure(text_entry_obj,state="normal")
+#  
+#  if (update_source)
+#  {
+#    tkdelete(text_entry_obj,"0.0","end")
+#
+#    n <- nrow(text_df)
+#    for (i in seq_len(n))
+#    {
+#      if (text_df$BP[[i]])
+#        tkinsert(text_entry_obj, "end", "O", "bp_color")
+#      else
+#        tkinsert(text_entry_obj, "end", " ")
+#
+#      if (text_df$IP[[i]])
+#        tkinsert(text_entry_obj, "end", "->", "ip_color")
+#      else
+#        tkinsert(text_entry_obj, "end", "  ")
+#        tkinsert(text_entry_obj, "end", paste(text_df$SRC[[i]],"\n",sep=""))
+#    }
+#  }
+#  else
+#  {
+#    # just update the ip
+#    v <-tktag.ranges(text_entry_obj, "ip_color")
+#    nranges <- as.numeric(as.character(tcl("llength", v)))
+#    for (i in (seq_len(nranges/2)-1)*2)
+#    {
+#      index1<-tcl("lindex", v,i)
+#      index2<-tcl("lindex", v,i+1)
+#
+#      tktag.remove(text_entry_obj, "ip_color", index1, index2)
+#      tcl(text_entry_obj, "replace", index1, index2, "  ")
+#    }
+#    ip_row <- which(text_df$IP)
+#    tcl(text_entry_obj, "replace", paste(ip_row,1,sep="."), paste(ip_row,3,sep="."), "->", "ip_color")
+#
+#  }
+#  tkconfigure(text_entry_obj,state="disabled")
+#}
+#
+#
+#
+#idbg.gui.set_entry_bp <<- function(text_entry_obj, row, value)
+#{
+#  tkconfigure(text_entry_obj,state="normal")
+#  
+#  pos <- sprintf("%d.0",row)
+#  tkdelete(text_entry_obj,pos)
+#  if (is.logical(value) && value == FALSE)
+#    tkinsert(text_entry_obj, pos, " ")
+#  else
+#    tkinsert(text_entry_obj, pos, "O", "bp_color")
+#    
+#  tkconfigure(text_entry_obj,state="disabled")
+#}
+#
+#
+#
+#idbg.gui.create_tab("help")
+#
+##tkselect(tt.pane.top.note, tkindex(tt.pane.top.note,"2"))
+##txt<-tkcget(tt.pane.top.note,"text")
+##txt <- as.character(tcl(tt.pane.top.note, "tab","2","-text"))
+##cat(txt,"\n")
+#
+#
+#
+#tt.pane.bottom.vscrollbar <- tkscrollbar(tt.pane.bottom,command=function(...)tkyview(tt.pane.bottom.text,...)) 
+#tt.pane.bottom.hscrollbar <- tkscrollbar(tt.pane.bottom,command=function(...)tkxview(tt.pane.bottom.text,...), orient="horiz") 
+#tt.pane.bottom.text <- tktext(tt.pane.bottom, setgrid=1, height=7, undo=1, autosep=1, wrap="none", exportselection=1, yscrollcommand=function(...)tkset(tt.pane.bottom.vscrollbar,...), xscrollcommand=function(...)tkset(tt.pane.bottom.hscrollbar,...))
+#tktag.configure(tt.pane.bottom.text, "cat_color", foreground="blue")
+#tkpack(tt.pane.bottom.vscrollbar,side="right",fill="y")
+#tkpack(tt.pane.bottom.hscrollbar,side="bottom",expand="no", fill="both")
+#tkpack(tt.pane.bottom.text, expand="yes", fill="both") 
+#tkbind(tt.pane.bottom.text, "<Control-x>", function(K)idb.gui.bottom.key_press(tt.pane.bottom.text, "Control-x") )
+#tkbind(tt.pane.bottom.text, "<Control-v>", function(K)idb.gui.bottom.key_press(tt.pane.bottom.text, "Control-v") )
+#tkbind(tt.pane.bottom.text, "<Shift-Insert>", function(K)idb.gui.bottom.key_press(tt.pane.bottom.text, "Shift-Insert") )
+#tkbind(tt.pane.bottom.text, "<KeyPress>", function(K)idb.gui.bottom.key_press(tt.pane.bottom.text, K) )
+#
+#
+#tkadd(tt.pane, tt.pane.top)
+#tkadd(tt.pane, tt.pane.bottom)
+#
+#
+#tkpack(tt.pane,side="top",expand="yes",fill="both",pady=2,padx="2m")
+#
+#
+#idb.gui.bottom.cat <<- function(str)
+#{
+#  tkinsert(tt.pane.bottom.text, "end", str, "cat_color")
+#  tkyview(tt.pane.bottom.text, "moveto","1.0")
+#}
+#
+#assign("gui_toplevel", tt, envir=idbg())
+#
+#return(invisible())
+#
 }
 
 
 .First.lib <- function(lib, pkg)
 {
-  idbg.init()
+  #idbg.init()
 }
   
+if (!exists("idbg.data") || force) 
+{
+    idbg.data <- new.env() 
+    idbg.data[["break_frame"]] <- -1
+    idbg.data[["call_stack"]] <- list()
+    idbg.data[["debug_frame"]] <- -1
+    idbg.data[["ifunc_names"]] <- c()
+    idbg.data[["gui"]] <- FALSE 	#suppressWarnings(library("tcltk", character.only =TRUE, logical.return=TRUE))
+    idbg.data[["gui_toplevel"]] <- NULL
+}

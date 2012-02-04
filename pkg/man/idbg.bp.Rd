@@ -1,6 +1,7 @@
 \name{idbg.bp}
 \Rdversion{1.1}
 \alias{idbg.bp}
+\alias{idbg.interact}
 %- Also NEED an '\alias' for EACH other topic documented here.
 \title{idbg.bp}
 \description{Prepare a function for debugging and set a breakpoint}
@@ -13,22 +14,14 @@ idbg.bp(func_name, line_number = NA, condition = TRUE)
   \item{line_number}{line number where to set the breakpoint}
   \item{condition}{ a condition to evaluate for conditional breakpoint}
 }
-\details{
-%%  ~~ If necessary, more details than the description above ~~
-}
 \value{ Logical. TRUE if the breakpoint was set, FALSE if it wasn't}
-\references{
-%% ~put references to the literature/web site here ~
-}
 \author{ Ronen Kimchi}
-\note{
-%%  ~~further notes~~
-}
+
 
 %% ~Make other sections like Warning with \section{Warning }{....} ~
 
 \seealso{
-debug undebug
+\code{\link{debug}} \code{\link{undebug}}
 }
 \examples{
 
