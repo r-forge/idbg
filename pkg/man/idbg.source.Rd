@@ -18,7 +18,7 @@ idbg.source(fname)
 %% ~Make other sections like Warning with \section{Warning }{....} ~
 
 \seealso{
-\code{\link{source}}
+\code{\link{source}} \code{\link{idbg.run}}
 }
 \examples{
 

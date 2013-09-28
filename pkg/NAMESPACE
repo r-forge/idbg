@@ -1,3 +1,4 @@
 export(idbg.bp)
 export(idbg.interact)
 export(idbg.source)
+export(idbg.run)

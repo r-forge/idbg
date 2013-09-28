@@ -1,50 +1,22 @@
 
 
-
-
 ###############################################################################
-#
-# idbg.init - Initialize debugger data structure  
-#
-# parameters: force - force initialization even if debugger data already exists
-#           
-# the debugger data is stored in an environment called idbg.data under the environment
-# of function idbg. Use function idbg() to get that environment
-#
-###############################################################################
-
-idbg.init <- function(force=FALSE)
-{
-#  if (!exists("idbg.data") || force) 
-#  {
-#    idbg.data <- new.env() 
-#    idbg.data[["break_frame"]] <- -1
-#    idbg.data[["call_stack"]] <- list()
-#    idbg.data[["debug_frame"]] <- -1
-#    idbg.data[["ifunc_names"]] <- c()
-#    idbg.data[["gui"]] <- FALSE 	#suppressWarnings(library("tcltk", character.only =TRUE, logical.return=TRUE))
-#    idbg.data[["gui_toplevel"]] <- NULL
-#  }
-
-}
-
 idbg <- function() {
   return(idbg.data)
 }
-
+###############################################################################
 idbg.call_stack_top <- function(frame_id, func_name, pos)
 {
   idbg.data$call_stack[[frame_id]] <- list(func_name, pos)
   length(idbg.data$call_stack) <- frame_id
 }
-
-
+###############################################################################
 idbg.add_ifunc <- function(fname)
 {
   if (! (fname %in% idbg.data$ifunc_names))
     idbg.data$ifunc_names <- c(idbg.data$ifunc_names, fname)
 }
-
+###############################################################################
 idbg.gui_mode <- function(is_gui=NA)
 {
   return(FALSE)
@@ -54,13 +26,30 @@ idbg.gui_mode <- function(is_gui=NA)
 #  idbg.data$gui <- is_gui
 #  return(idbg.data$gui)
 }
-
-
 ###############################################################################
 idbg.bp <- function( func_name, line_number=NA, condition=TRUE)
 {
-  #func_name <- as.character(substitute(func_name))
-  f <- ifunc(func_name)
+  func_name <- as.character(substitute(func_name))
+  return(idbg.set_breakpint( func_name, line_number, condition))
+}
+###############################################################################
+idbg.run <- function( expr )
+{
+  e <- substitute(expr)
+  if (is.call(e))
+  {
+    idbg.prepare_step(e);
+    assign("break_frame", NA, envir=idbg())
+    on.exit(idbg.data[["top_frame"]] <- 0)
+    idbg.data[["top_frame"]] <- 3
+    eval(e)
+  }
+}
+###############################################################################
+idbg.set_breakpint <- function( func_name, line_number=NA, condition=TRUE)
+{
+  func_name <- as.character(func_name)
+  f <- ifunc(func_name, FALSE)
 
   return(breakpoint.ifunc(f, line_number, condition))
 }
@@ -70,7 +59,7 @@ idbg.get_breakpoints <- function()
   
   breakpoints <- NULL
   for (fname in idbg()[["ifunc_names"]])
-  {
+  { 
     f <-  idbg.match.ifunc(fname)
     if (is.null(f) || ! is.ifunc(f))
       next
@@ -99,7 +88,7 @@ idbg.source <- function(fname)
     nbreakpoints<- nrow(breakpoints)
     for (i in seq_len(nbreakpoints))
     {
-      idbg.bp(breakpoints$function_name[[i]], breakpoints$line[[i]])
+      idbg.set_breakpint(breakpoints$function_name[[i]], breakpoints$line[[i]])
     }
   }
 }
@@ -111,8 +100,21 @@ idbg.clear_all_breakpoints <- function()
   {
     nbreakpoints<- nrow(breakpoints)
     for (i in seq_len(nbreakpoints))
-      idbg.bp(breakpoints$function_name[[i]], breakpoints$line[[i]], FALSE)
+      idbg.set_breakpint(breakpoints$function_name[[i]], breakpoints$line[[i]], FALSE)
   }
+}
+###############################################################################
+idbg.reset <- function()
+{
+    idbg.data[["break_frame"]] <- -1
+    idbg.data[["call_stack"]] <- list()
+    idbg.data[["debug_frame"]] <- -1
+    # the frame of the topmoset debugged function. needed to hide the eval frame in case of idbg.run
+    idbg.data[["top_frame"]] <- 0
+    idbg.data[["ifunc_names"]] <- c()
+    idbg.data[["gui"]] <- FALSE 	#suppressWarnings(library("tcltk", character.only =TRUE, logical.return=TRUE))
+    idbg.data[["gui_toplevel"]] <- NULL
+    idbg.data[["echo_on"]] <- TRUE
 }
 ###############################################################################
 idbg.interact <- function(pos, func_name)
@@ -144,7 +146,7 @@ idbg.interact <- function(pos, func_name)
     # we may stop in two cases
     # 1. step in command assigned the break_frame and we got to that frame
     # 2. we returned from a debugged function to the caller
-    if (! is.na(idbg()$break_frame) && frame_id-1 != idbg()$break_frame) # && last_debug_frame <= frame_id-1)
+    if (! is.na(idbg()$break_frame) && frame_id-1 > idbg()$break_frame) # && last_debug_frame <= frame_id-1)
       return(NULL)
     #browser()
     assign("break_frame", -1, envir=idbg())
@@ -154,16 +156,27 @@ idbg.interact <- function(pos, func_name)
 #  if (gui)
 #    idbg.gui.set_entry_text(func_name,list_source_extended.ifunc(func, pos), TRUE,TRUE)
 #  else
-    cat(list_source.ifunc(func, pos))
+    cat(list_source.ifunc(func_name, pos))
 
 
   while (debug_loop)
   {
     # GUI not implemented in current version
-	#if (gui)
+    #if (gui)
     #  line <- idb.gui.wait_for_usr_cmd()
     #else
-      line <- readline(sprintf("debug %d: ",pos));
+      line <- readline("debug: ");
+      
+    if (idbg()$echo_on)
+    {
+      if (substr(line,1,1)=="#")
+      {
+        idbg.cat(line,"\n",sep="")  
+        next
+      }  
+      else  
+        idbg.cat("debug: ",line,"\n",sep="")  
+    }  
 
     if (line == "")
       line <- "n"
@@ -218,20 +231,57 @@ idbg.interact <- function(pos, func_name)
       q <- idbg()$call_stack[[idbg()$debug_frame]]
       lfunc <- q[[1]]
       # GUI not implemented in current version
-	  #if (gui)
+      #if (gui)
       #  idbg.gui.set_entry_text(lfunc,list_source_extended.ifunc(lfunc, NA), TRUE,TRUE)
       #else
       {
         lpos <- q[[2]]
-        if (length(words) == 0)
-          cat(list_source.ifunc(lfunc, lpos))
+        if (length(words) == 0 )
+          cat(list_source.ifunc(lfunc, lpos,show_pos_arrow=TRUE))
         else
-        if (length(words) == 1)
-          cat(list_source.ifunc(lfunc, lpos, words[[1]], words[[1]]))
-        else
-        if (length(words) >= 2)
-          cat(list_source.ifunc(lfunc, lpos, words[[1]], words[[2]]))
+        {        
+          back <-  suppressWarnings(as.numeric(words[[1]]))
+          if (is.na(back))
+          {
+            lfunc <- words[[1]]
+            lpos <- 1
+            back_arg <- 2
+            show_pos_arrow <- FALSE
+            ifunc(lfunc)
+          }
+          else
+          {
+            back_arg <- 1
+            show_pos_arrow <- TRUE
+          }  
+          
+          if (length(words) < back_arg)
+            cat(list_source.ifunc(lfunc, lpos,show_pos_arrow=show_pos_arrow))
+          else
+          if (length(words) == back_arg)
+            cat(list_source.ifunc(lfunc, lpos, words[[back_arg]], words[[back_arg]], show_pos_arrow=show_pos_arrow))
+          else
+          if (length(words) > back_arg)
+            cat(list_source.ifunc(lfunc, lpos, words[[back_arg]], words[[back_arg+1]], show_pos_arrow=show_pos_arrow))
+        }    
       }
+    }
+    else
+    if (cmd == "f")
+    {
+      # f what [func_name]
+      if (length(words) == 0)
+        next
+      q <- idbg()$call_stack[[idbg()$debug_frame]]
+      lfunc <- q[[1]]
+      if (length(words) > 1)
+      {
+        lfunc <- words[[2]]
+      }  
+      ifunc(lfunc)
+      l <- list_source.ifunc(lfunc, NA,show_pos_arrow=FALSE, list_result=TRUE)
+      for (i in grep(words[[1]], l))
+        idbg.cat(l[[i]],"\n")
     }
     else
     if (cmd == "b")
@@ -239,7 +289,7 @@ idbg.interact <- function(pos, func_name)
       if (length(words) == 0)
         idbg.print_breakpoints()
       else
-	  if (words[[1]]=="FALSE")
+      if (words[[1]]=="FALSE")
         idbg.clear_all_breakpoints()
       else
       {
@@ -264,14 +314,14 @@ idbg.interact <- function(pos, func_name)
         }
 
         if (length(words) >= bp_cond_arg)
-		  bp_condition <- do.call("paste", as.list(words[bp_cond_arg:length(words)]))
-		else
+          bp_condition <- do.call("paste", as.list(words[bp_cond_arg:length(words)]))
+        else
           bp_condition <- TRUE
-        idbg.bp(bp_func_name, bp_line, bp_condition) 
+        idbg.set_breakpint(bp_func_name, bp_line, bp_condition) 
       }
       
       # GUI not implemented in current version
-	  #if (gui)
+      #if (gui)
       #  idbg.gui.set_entry_text(func_name,list_source_extended.ifunc(func, pos), TRUE,TRUE)
 
     }
@@ -280,20 +330,31 @@ idbg.interact <- function(pos, func_name)
     {
       # print the stack
       # todo - if the stack include non debugable functions (eg. apply) print data about them
+      
       widx <- 0
+      printed_widx <- 0
       for (q in idbg()$call_stack)
       {
         widx <- widx + 1
-        if (is.null(q))
-          idbg.cat("???\n")
-        else
+        if (widx <= idbg.data[["top_frame"]])
+          next
+        printed_widx <- printed_widx + 1  
+        if (is.null(q) || is.null(idbg.match.ifunc(q[[1]])))
         {
+          wchar <- " "
+          idbg.cat(wchar, printed_widx, as.character(sys.call(widx)[[1]])," =>????",deparse(sys.call(widx+1)),"\n") 
+        }  
+        else
+        {      
           if (widx == idbg()$debug_frame)
             wchar <- "*"
           else
             wchar <- " "
-          idbg.cat(wchar, widx, q[[1]]," ")
-          idbg.cat(list_source.ifunc(q[[1]], q[[2]], 0, 0))
+          idbg.cat(wchar, printed_widx, q[[1]]," ") 
+          l <- list_source.ifunc(q[[1]], q[[2]], 0, 0)
+          if (l == "")
+            l <- "\n"
+          idbg.cat(l)
         }
       }
     }
@@ -301,19 +362,20 @@ idbg.interact <- function(pos, func_name)
     if (cmd == "u") 
     {
       # up in the stack
-      if (idbg()$debug_frame > 1)
+      if (idbg()$debug_frame-1 > idbg.data[["top_frame"]])
         assign("debug_frame", idbg()$debug_frame-1, envir=idbg())
     }
     else
     if (cmd == "d") 
     {
       # down in the stack
-      if (idbg()$debug_frame < frame_id)
+      if (idbg()$debug_frame+1 < frame_id)
         assign("debug_frame", idbg()$debug_frame+1, envir=idbg())
     }
     else
     if (cmd == "q")
     {
+      idbg.reset()
       invokeRestart(findRestart("abort"))
     }
     else
@@ -326,16 +388,18 @@ idbg.interact <- function(pos, func_name)
       idbg.cat("c - continue\n")
       idbg.cat("q - quit\n")
       idbg.cat("b - print breakpoints\n")
-	  idbg.cat("b FALSE - clear all breakpoints\n")
-      idbg.cat("b <func_name> [FALSE] - set/unset a breakpoint in first line of function\n")
-      idbg.cat("b <line_number> [FALSE] - set/unset a breakpoint in current function\n")
-      idbg.cat("b <func_name> <line_number> [FALSE] - set/unset a breakpoint in function at at line_number\n")
+      idbg.cat("b FALSE - clear all breakpoints\n")
+      idbg.cat("b <func_name> [FALSE] - set/unset a breakpoint at the first line of func_name\n")
+      idbg.cat("b <line_number> [FALSE] - set/unset a breakpoint at the current function\n")
+      idbg.cat("b <func_name> <line_number> [FALSE] - set/unset a breakpoint in func_name at line_number\n")
       idbg.cat("w - print the stack\n")
       idbg.cat("u - go up the stack\n")
       idbg.cat("d - go down the stack\n")
-      idbg.cat("l [nlines] - print nlines of source before and after current position\n")
-      idbg.cat("l [nlines_back] [nlines_forward] - print source around current position\n")
+      idbg.cat("l [func_name] [nlines] - print nlines of source before and after current position\n")
+      idbg.cat("l [func_name] [nlines_back] [nlines_forward] - print source around current position\n")
+      idbg.cat("f string [func_name] - find string in function source\n")
       idbg.cat("x expr - execute expression. Any expression that doesn't match the above options will also be executed\n")
+      idbg.cat("expr - Any expression that doesn't match the above options will also be executed\n")
     }
     else
     {
@@ -347,16 +411,19 @@ idbg.interact <- function(pos, func_name)
       }
       else
         expr <- line
+      saved_error_option <- getOption("error")
+      options(error=NULL)      
       e<- try(
         #print(eval.parent(parse(text=expr))),
         capture.output(eval(parse(text=expr),envir=sys.frame(idbg()$debug_frame))),
         silent = TRUE
       )
-      if (class(e) == "try-error")
+      options(error=saved_error_option)
+      if (inherits(e, "try-error"))
         idbg.cat(geterrmessage())
       else
       {
-		for (line in e)
+        for (line in e)
           idbg.cat(line,"\n")
         idbg.cat("\n")
       }
@@ -365,10 +432,41 @@ idbg.interact <- function(pos, func_name)
   }
 }
 ###############################################################################
-idbg.match.ifunc <- function(fname)
+idbg.match.func <- function(fname)
 {
-  f <-match.fun(fname)
-  if (is.ifunc(f))
+  found <- FALSE
+  for (frame_id in seq(sys.nframe(),0))
+  {
+    envir <- sys.frame(frame_id)
+    if (exists(fname, envir = envir, mode = "function", inherits = FALSE))
+    {
+      func <- get(fname, envir = envir, mode = "function", inherits = FALSE)
+      return(func)
+    }
+  }
+  
+  # looking for the function in packages may be a problem.
+  # there is no way to assign to the instrumented copy if the environement is locked
+  # cannot change value of locked binding for 'fname'
+  if (! found)
+  {
+    for (envir in search()[-1])
+    {
+      if (exists(fname, where = envir, mode = "function", inherits = FALSE))
+      {
+        func <- get(fname, pos = envir, mode = "function", inherits = FALSE)
+        return(func)
+      }
+    }  
+  }
+
+  return(NULL)
+}
+###############################################################################
+idbg.match.ifunc <- function(fname)    
+{
+  f <- idbg.match.func(fname)
+  if (! is.null(f) && is.ifunc(f))
     return(f)
 
   return(NULL)
@@ -377,7 +475,6 @@ idbg.match.ifunc <- function(fname)
 idbg.prepare_step <- function(expr)
 {
   expr_len <- length(expr)
-
   
   e <- expr[[1]]
   ifunc(as.character(expr[[1]]))
@@ -458,12 +555,14 @@ idbg.instrument_expr_list <- function(expr, func_name, ienv)
   expr_len <- length(expr)
   l<-list()
   ikey <- ienv$key
-  ienv$addr <- c(ienv$addr, NA)
 
   if (expr_len > 0 && class(expr[[1]]) == "name" && expr[[1]] != "{")
   {
     return(idbg.instrument_expr_list(as.call(c(as.name("{"), expr)), func_name, ienv))
   }
+
+  ienv$addr <- c(ienv$addr, NA)
+
   
   for (i in seq_len(expr_len)) 
   { 
@@ -518,55 +617,36 @@ idbg.gen_source <- function(instrumented_body)
   return(list(src=s, key2line=key2line))
 }
 ###############################################################################
-ifunc <- function(fname)
+ifunc <- function(fname, silent=TRUE)
 {
   if (! is.character(fname))
     return(NULL)
 
-#  if (fname %in% builtins())
-#    return(NULL)
+  func <- idbg.match.func(fname)
 
-  
-  #func <- try (match.fun(fname))
-  #if (length(class(func)) == 1 && class(func) == "try-error")
-  #  return(NULL)
-
-  # search for the func and the frame that it belongs to
-  found <- FALSE
-  for (frame_id in seq(sys.nframe(),0))
+  if (is.null(func))
   {
-    envir <- sys.frame(frame_id)
-    if (exists(fname, envir = envir, mode = "function", inherits = FALSE))
-    {
-      func <- get(fname, envir = envir, mode = "function", inherits = FALSE)
-      found <- TRUE
-      break
-    }
-  }
-  
-  # looking for the function in packages doesn't work as there is no way to assign to the instrumented copy
-  # cannot change value of locked binding for 'fname'
-  #if (! found)
-  #{
-  #  for (envir in search()[-1])
-  #	{
-  #	  if (exists(fname, where = envir, mode = "function", inherits = FALSE))
-  #	  {
-  #	    func <- get(fname, pos = envir, mode = "function", inherits = FALSE)
-  #		found <- TRUE
-  #		break
-  #	  }
-  #	}  
-  #}
-
-  if (! found)
+    if (! silent)
+      idbg.cat("Function",fname, "not found\n")
     return(NULL)
+  }  
 
   if (is.primitive(func))
+  {
+    if (! silent)
+      idbg.cat("Can't debug primitive functions\n")
     return(func)
+  }  
   
   if (is.ifunc(func))
     return(func)
+  
+  if (environmentIsLocked(environment(func)))  
+  {
+    if (! silent)
+      idbg.cat("Can't debug functions in locked environments\n")
+    return(NULL)
+  }  
 
   ienv <- new.env()
   ienv$key <- 0
@@ -585,15 +665,36 @@ ifunc <- function(fname)
   data[["key2addr"]] <- ienv$key2addr
   data[["breakpoints"]] <- rep(FALSE,length(q$key2line))
 
-
   class(ret) <- c("ifunc", class(ret))
   
-  
   idbg.add_ifunc(fname)
-  if (is.character(envir))
-    assign(fname, ret, pos=envir)
-  else	
-    assign(fname, ret, envir=envir)
+  
+  is_locked <- bindingIsLocked(fname, environment(func))
+  if (is_locked)
+    unlockBinding(fname, environment(func))
+    
+  err<- try(
+    assign(fname, ret, envir=environment(func)) 
+  #  if (is.character(envir))
+  #    assign(fname, ret, pos=envir)
+  #  else	
+  #    assign(fname, ret, envir=envir) 
+  , silent = TRUE
+  )
+  if (is_locked)
+    lockBinding(fname, environment(func))
+
+  if (inherits(err, "try-error"))
+  {
+    if (! silent)
+    {
+      idbg.cat("Can't debug function", fname,"\n")
+      idbg.cat(geterrmessage())
+    }  
+    return(NULL)
+  }  
+  
+  return(ret)  
 }
 ###############################################################################
 is.ifunc <- function(x)
@@ -627,7 +728,7 @@ breakpoint.ifunc <- function(f, line_number, expr=TRUE)
   if (length(d) == 0)
     return(FALSE)
   d <- d[[1]]	
-	
+
   if (is.na(expr))
     attr(f,"data")$breakpoints[[d]] <- ifelse( attr(f,"data")$breakpoints[[d]] == FALSE, TRUE, FALSE) 
   else
@@ -660,27 +761,45 @@ list_breakpoints.ifunc <- function(f)
   return(data.frame(line=lines, condition=conditions, stringsAsFactors=FALSE))
 }
 ###############################################################################
-list_source.ifunc <- function(func, pos, back=10, forward=10)
+list_source.ifunc <- function(func, pos, back=10, forward=10, show_pos_arrow=TRUE, list_result=FALSE)
 {
   back <- suppressWarnings(as.integer(back))
   forward <- suppressWarnings(as.integer(forward))
 
-  if (is.na(back) || back < 0)
+  if (is.na(back))
     back <- 10
-  if (is.na(forward) || forward < 0)
+  if (is.na(forward))
     forward <- 10
 
   if (is.character(func))
-    func <- match.fun(func)
+  {
+    func_name <- func
+    func <- idbg.match.func(func)
+  }
+  else
+    func_name <- NA  
 
-  txt_buffer <- ""
+  if (list_result)
+    txt_buffer <- c()
+  else  
+    txt_buffer <- ""
   if (is.ifunc(func))
   {  
     src <- attr(func, "data")$src
-    key2line <- attr(func, "data")$key2line
-    pos <- key2line[[pos]]
-    start <- pos - back
-    end <- pos + forward
+    if (! is.na(pos))
+    {
+      key2line <- attr(func, "data")$key2line
+      pos <- key2line[[pos]]
+      start <- pos - back
+      end <- pos + forward
+    } 
+    else
+    {
+      pos <- 0
+      start <- 1
+      end <- length(src)
+      show_pos_arrow <- FALSE
+    }     
   
     if (start < 1 )
       start <- 1
@@ -688,16 +807,34 @@ list_source.ifunc <- function(func, pos, back=10, forward=10)
       end <- length(src)
 
     if (start == 1)
-      txt_buffer <- paste(format(args(func))[[1]],"\n",sep="")
+    {
+      line <- format(args(func))
+      if (length(line) > 2)
+        line <- paste(line[[1]],". . .")
+      else  
+        line <- line[[1]]
+      if (! is.na(func_name))
+        line <- sub("\\(",paste(func_name,"(",sep=""),line)
+      line <- paste(line,"\n",sep="")  
+      if (list_result)
+        txt_buffer <- c(txt_buffer, line)
+      else  
+        txt_buffer <- line
+    }    
 
     for (i in start:end ) 
     { 
       line <- sprintf("%04d %s",i,src[[i]])
-      if (i == pos)
-        txt_buffer <-  paste(txt_buffer,"=>",sep="")
+      if (list_result)
+        txt_buffer <- c(txt_buffer, line)
       else
-        txt_buffer <-  paste(txt_buffer,"  ",sep="")
-      txt_buffer <-  paste(txt_buffer,line,"\n",sep="")
+      {      
+        if (show_pos_arrow && i == pos)
+          txt_buffer <-  paste(txt_buffer,"=>",sep="")
+        else
+          txt_buffer <-  paste(txt_buffer,"  ",sep="")
+        txt_buffer <-  paste(txt_buffer,line,"\n",sep="")
+      }  
     }
   }
   return(txt_buffer)
@@ -739,7 +876,7 @@ idbg.cat <- function(...)
   #if (idbg.gui_mode())
   #  idb.gui.bottom.cat(str1)
   #else
-    cat(str1)
+  cat(str1)
 }
 ###############################################################################
 idbg.gui <- function()
@@ -795,7 +932,7 @@ idbg.gui <- function()
 #
 #  #cat("left click",x,y, row,col,"\n")
 #  if (col ==0)
-#    idbg.bp( func_name, row-1, NA)
+#    idbg.set_breakpint( func_name, row-1, NA)
 #  idbg.gui.set_entry_bp(note_entry.text, row, line_breakpoint.ifunc(ifunc(func_name), row-1))
 #}
 #
@@ -1070,18 +1207,13 @@ idbg.gui <- function()
 }
 
 
-.First.lib <- function(lib, pkg)
-{
-  #idbg.init()
-}
+#.First.lib <- function(lib, pkg)
+#{
+#  #idbg.init()
+#}
   
-if (!exists("idbg.data") || force) 
+if (!exists("idbg.data") ) 
 {
-    idbg.data <- new.env() 
-    idbg.data[["break_frame"]] <- -1
-    idbg.data[["call_stack"]] <- list()
-    idbg.data[["debug_frame"]] <- -1
-    idbg.data[["ifunc_names"]] <- c()
-    idbg.data[["gui"]] <- FALSE 	#suppressWarnings(library("tcltk", character.only =TRUE, logical.return=TRUE))
-    idbg.data[["gui_toplevel"]] <- NULL
+  idbg.data <- new.env() 
+  idbg.reset()
 }
