@@ -398,7 +398,7 @@ idbg.interact <- function(pos, func_name)
       idbg.cat("l [func_name] [nlines] - print nlines of source before and after current position\n")
       idbg.cat("l [func_name] [nlines_back] [nlines_forward] - print source around current position\n")
       idbg.cat("f string [func_name] - find string in function source\n")
-      idbg.cat("x expr - execute expression. Any expression that doesn't match the above options will also be executed\n")
+      idbg.cat("x expr - execute expression\n")
       idbg.cat("expr - Any expression that doesn't match the above options will also be executed\n")
     }
     else

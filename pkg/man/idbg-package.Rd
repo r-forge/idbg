@@ -52,10 +52,12 @@ b <func_name> <line_number> [FALSE] - set/unset a breakpoint in func_name at lin
 w - print the stack\cr
 u - go up the stack\cr
 d - go down the stack\cr
-l [nlines] - print nlines of source before and after current position\cr
-l [nlines_back] [nlines_forward] - print source around current position\cr
+l [func_name] [nlines] - print nlines of source before and after current position\cr
+l [func_name] [nlines_back] [nlines_forward] - print source around current position\cr
+f string [func_name] - find string in function source\cr
 x expr - execute expression.\cr
 expr - Any expression that doesn't match the above options will also be executed\cr
+
 
 
 }
@@ -256,7 +258,7 @@ idbg.run(foo(2,3))
 # l [func_name] [nlines] - print nlines of source before and after current position
 # l [func_name] [nlines_back] [nlines_forward] - print source around current position
 # f string [func_name] - find string in function source
-# x expr - execute expression. Any expression that doesn't match the above options will also be executed
+# x expr - execute expression.
 # expr - Any expression that doesn't match the above options will also be executed
 
 ## Exit the debugger
