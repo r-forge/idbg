@@ -114,7 +114,7 @@ idbg.reset <- function()
     idbg.data[["ifunc_names"]] <- c()
     idbg.data[["gui"]] <- FALSE 	#suppressWarnings(library("tcltk", character.only =TRUE, logical.return=TRUE))
     idbg.data[["gui_toplevel"]] <- NULL
-    idbg.data[["echo_on"]] <- TRUE
+    idbg.data[["echo_on"]] <- FALSE
 }
 ###############################################################################
 idbg.interact <- function(pos, func_name)
