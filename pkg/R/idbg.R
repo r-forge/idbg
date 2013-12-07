@@ -49,7 +49,8 @@ idbg.run <- function( expr )
 idbg.set_breakpint <- function( func_name, line_number=NA, condition=TRUE)
 {
   func_name <- as.character(func_name)
-  f <- ifunc(func_name, FALSE)
+  # unlock_existing_bindings not debugged well - disabled 
+  f <- ifunc(func_name, FALSE, unlock_existing_bindings=FALSE)
 
   return(breakpoint.ifunc(f, line_number, condition))
 }
@@ -617,7 +618,7 @@ idbg.gen_source <- function(instrumented_body)
   return(list(src=s, key2line=key2line))
 }
 ###############################################################################
-ifunc <- function(fname, silent=TRUE)
+ifunc <- function(fname, silent=TRUE, unlock_existing_bindings=FALSE)
 {
   if (! is.character(fname))
     return(NULL)
@@ -671,7 +672,23 @@ ifunc <- function(fname, silent=TRUE)
   
   is_locked <- bindingIsLocked(fname, environment(func))
   if (is_locked)
-    unlockBinding(fname, environment(func))
+  {
+    if (unlock_existing_bindings)
+	  {
+      unlockBinding(fname, environment(func))
+      if (bindingIsLocked(fname, environment(func)))
+      {
+        if (! silent)
+          idbg.cat("Can't unlock binding for",fname,"\n")
+          
+		    return(NULL)
+      }  
+	  }	
+  	else
+    {
+	    return(NULL)
+    }  
+  }	  
     
   err<- try(
     assign(fname, ret, envir=environment(func)) 
